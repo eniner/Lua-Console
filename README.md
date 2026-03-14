@@ -1,22 +1,171 @@
-# Lua Console
+# LuaConsole Pro (MQNext)
 
-## Introduction
-This repository contains a Lua Console with various features.
+LuaConsole Pro is a full in-game Lua REPL and observability dashboard for MacroQuest / MQNext.
 
-![Overview Screenshot](path/to/overview-screenshot.png)
+It combines:
+
+- persistent REPL evaluation
+- multi-line chunk support
+- history and pretty printing
+- watch/trigger/plot monitoring
+- inspect tools and snippet workflows
+- benchmark/profiling helpers
+- export/import/share tools
+- a plugin API and event bus for external Lua scripts
+
+![Main Console Overview](Screenshot%202026-03-13%20215801.png)
 
 ## Core Capabilities
+
 ### REPL Engine
-![REPL Screenshot](path/to/repl-screenshot.png)
 
-## Console UI
-![Console UI Screenshot](path/to/console-ui-screenshot.png)
+- Persistent environment across evals (variables/functions survive until script restart or reset by user code).
+- Multi-line continuation based on compile completeness (`<eof>` handling).
+- Expression-first eval (`return <expr>`) fallback to chunk execution.
+- `xpcall + traceback` error handling.
+- Pretty-printer for tables/userdata with recursion handling.
+- Safety layer for dangerous APIs (blocked `os.execute`, `os.exit`, `io.popen`, etc.).
 
-## Observability
-![Observability Screenshot](path/to/observability-screenshot.png)
+![REPL Demonstration 1](Screenshot%202026-03-13%20224022.png)
+![REPL Demonstration 2](Screenshot%202026-03-13%20224647.png)
+![REPL Demonstration 3](Screenshot%202026-03-13%20224701.png)
 
-## Tabs/Panels
-![Tabs/Panels Screenshot](path/to/tabs-panels-screenshot.png)
+### Console UI
 
-## Plugin API
-![Plugin API Example Screenshot](path/to/plugin-api-example-screenshot.png)
+- ImGui window toggle (`/luaconsole`, `/lc`).
+- Colored output with filter/search.
+- Input editor with Enter eval and Shift+Enter newline.
+- Copy/Clear/Save/Load/Export controls.
+- Autocomplete popup and TAB cycling.
+
+![Console UI Features 1](Screenshot%202026-03-13%20224708.png)
+![Console UI Features 2](Screenshot%202026-03-13%20224714.png)
+![Console UI Features 3](Screenshot%202026-03-13%20224720.png)
+![Console UI Features 4](Screenshot%202026-03-13%20224726.png)
+
+### Observability
+
+- Live Watches table (label, expression, value, last updated, eval time).
+- Conditional Triggers (rising edge + cooldown + optional combat-only mode).
+- Live numeric plots (`PlotLines`) with rolling sample buffers.
+- Quick inspect snapshots (`Me`, `Target`, `Cursor`, `Group Avg`) and tree view.
+
+![Observability Features 1](Screenshot%202026-03-13%20224746.png)
+![Observability Features 2](Screenshot%202026-03-13%20224753.png)
+![Observability Features 3](Screenshot%202026-03-13%20225308.png)
+![Observability Features 4](Screenshot%202026-03-13%20225314.png)
+![Observability Features 5](Screenshot%202026-03-13%20225320.png)
+
+### Workflow & Automation
+
+- Snippet library with built-in starter snippets and one-click run.
+- Event tester panel.
+- Benchmark panel (avg/min/max/stddev/memory delta).
+- Output export and share bundle import/export.
+- Task modes (`combat`, `merc`, `nav`, `repl`, `monitor`).
+
+### Reliability & Persistence
+
+- Settings persistence (theme/layout/history/top ratio/toggles).
+- Session save/load JSON.
+- Autosave snapshots with restore prompt.
+- Per-character file scoping for all persisted files.
+- Remote eval file watcher for external editor workflows.
+
+## Tabs / Panels
+
+Default tabs include:
+
+- `Console`: main REPL output + input.
+- `Watches`: watch table + plots.
+- `Snippets`: add/edit/run snippets.
+- `Inspect`: expression inspect and tree explorer.
+- `Logs`: dedicated filtered/searchable log view.
+- `Observability`: combined watches/triggers/inspect/plots.
+- `Workflow`: snippets/events/quick commands.
+- `Systems`: combat/nav/merc/macro bridge utilities.
+- `Settings`: performance, benchmark, theme/layout, share, plugin hooks.
+
+![Tabs Overview 1](Screenshot%202026-03-13%20225328.png)
+![Tabs Overview 2](Screenshot%202026-03-13%20225341.png)
+
+External scripts can register additional custom tabs through the API.
+
+## File Persistence
+
+Stored under `mq.configDir` (and character-scoped when enabled):
+
+- `luaconsole_settings.lua`
+- `luaconsole_session.json`
+- `luaconsole_watches.json`
+- `luaconsole_triggers.json`
+- `luaconsole_snippets.json`
+- `luaconsole_share.json`
+- `luaconsole_state.json`
+- `luaconsole_autosave.json`
+- `luaconsole_remote_eval.lua`
+- `luaconsole_log.txt`
+
+## Plugin API (External Script Interop)
+
+This script exposes a module:
+
+```lua
+local console = require('luaconsole')
+```
+
+Available API functions:
+
+- `console.log(text, level)`
+- `console.watch_add(expr, label)`
+- `console.watch_remove(id)`
+- `console.trigger_add(condition, action, cooldownMs, combatOnly)`
+- `console.trigger_remove(id)`
+- `console.run_snippet(nameOrIndex)`
+- `console.inspect_push(value, label)`
+- `console.tab_register(name, callback, owner)`
+- `console.tab_unregister(id)`
+- `console.subscribe(eventName, callback, owner)`
+- `console.unsubscribe(subId)`
+- `console.publish(eventName, payload)`
+- `console.state` (shared internal state table)
+
+### Event Bus Events Emitted
+
+- `eval_completed`
+- `watch_changed`
+- `trigger_fired`
+
+Example:
+
+```lua
+local console = require('luaconsole')
+
+console.log('external script online', 'ok')
+console.watch_add('Me.PctHPs()', 'My HP')
+
+local subId = console.subscribe('trigger_fired', function(payload)
+    console.log('trigger fired: '..tostring(payload.id), 'warn')
+end, 'my_script')
+
+local tabId = console.tab_register('My Tool', function(state)
+    ImGui.Text('Hello from custom tab')
+end, 'my_script')
+```
+
+## Remote Eval Workflow
+
+When remote eval is enabled, the console polls `luaconsole_remote_eval.lua`.
+If file contents change and are non-empty, the new contents are evaluated as a chunk.
+
+This supports editor-driven loop:
+
+- edit file in VSCode
+- save
+- console evaluates updated text automatically
+
+## Notes
+
+- If running on Lua 5.4 environments, unpack compatibility is handled internally.
+- Main tick loop is protected with `xpcall`; runtime faults are logged to console.
+- For command syntax and examples, see `COMMANDS.md`.
